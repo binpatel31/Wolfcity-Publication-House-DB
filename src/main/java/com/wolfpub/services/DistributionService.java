@@ -116,7 +116,6 @@ public class DistributionService {
                 System.out.println("Please enter the city:");
                 city = sc.nextLine();
                 System.out.println("Please enter the ZIP Code/location in Integer format:");
-                //location = sc.nextInt();
                 locationString = sc.nextLine();
                 while(true) {
                     try {
@@ -126,7 +125,7 @@ public class DistributionService {
                             location = Integer.parseInt(locationString);
                         break;
                     } catch (NumberFormatException exp) {
-                        System.out.println("Balance should be a integer value, please provide a valid value.");
+                        System.out.println("Location should be an integer value, please provide a valid value.");
                         locationString = sc.nextLine();
                     }
                 }
@@ -161,6 +160,7 @@ public class DistributionService {
                 distributorID = sc.nextInt();
                 deleteDistributorInfo(distributorID);
                 sc.nextLine(); // throw away the new line character
+                break;
             case 4:
                 // Input orders from distributors, for a book edition or an issue of a publication per distributor, for a certain date
                 System.out.println("Please enter following information ");
@@ -171,7 +171,7 @@ public class DistributionService {
                         distributorID = Integer.parseInt(distributorIDString);
                         break;
                     } catch (NumberFormatException exp) {
-                        System.out.println("distributorID should be a integer value, please provide a valid value.");
+                        System.out.println("distributorID should be an integer value, please provide a valid value.");
                         distributorIDString = sc.nextLine();
                     }
                 }
@@ -182,7 +182,7 @@ public class DistributionService {
                         orderID = Integer.parseInt(orderIDString);
                         break;
                     } catch (NumberFormatException exp) {
-                        System.out.println("orderID should be a integer value, please provide a valid value.");
+                        System.out.println("orderID should be an integer value, please provide a valid value.");
                         orderIDString = sc.nextLine();
                     }
                 }
@@ -193,7 +193,7 @@ public class DistributionService {
                         publicationID = Integer.parseInt(publicationIDString);
                         break;
                     } catch (NumberFormatException exp) {
-                        System.out.println("orderID should be a integer value, please provide a valid value.");
+                        System.out.println("orderID should be an integer value, please provide a valid value.");
                         publicationIDString = sc.nextLine();
                     }
                 }
@@ -209,9 +209,10 @@ public class DistributionService {
                 System.out.println("Please enter the number of copies:");
                 numberCopies = sc.nextInt();
                 sc.nextLine(); //throw away the newline character
+                System.out.println("Please enter the price:");
                 priceString = sc.nextLine();
                 price = Float.parseFloat(priceString);
-                sc.nextLine(); // throw away the newline character
+                //sc.nextLine(); // throw away the newline character
                 isPaid = false; // new order
                 order = new Order(orderID, orderDate, expectedDate, shippingCost, isPaid, numberCopies, price, distributorID, publicationID);
                 placeOrder(order);
@@ -267,7 +268,7 @@ public class DistributionService {
         PreparedStatement psInsert = null;
         PreparedStatement psUpdate = null;
         String insertQuery = "INSERT INTO CLEARDUES(PaymentID,DistributorID,AccountantID,PaymentDate,PaymentAmount) VALUES (?,?,?,?,?)";
-        String updateQuery = "UPDATE DISTRIBUTORS SET BALANCE = BALANCE - ? WHERE  DistributorID = ?";
+        String updateQuery = "UPDATE DISTRIBUTORS SET BALANCE = BALANCE + ? WHERE  DistributorID = ?";
 
         try {
             connection.setAutoCommit(false);
@@ -309,14 +310,40 @@ public class DistributionService {
 
     private void enterBillingInfo(OrdersAndBill ordersAndBill) {
         PreparedStatement ps;
+        PreparedStatement psUpdate, psSelect;
+        int distributorID;
         String insertQuery = "INSERT INTO  ORDERSANDBILL(OrderID,BillDate,AccountantID,BillAmount) VALUES (?,?,?,?)";
+        String updateQuery = "UPDATE DISTRIBUTORS SET Balance = Balance - ? WHERE DistributorID = ?";
+        String selectQuery = "SELECT DistributorID FROM ORDERS WHERE OrderID = ?";
         try{
             ps = connection.prepareStatement(insertQuery);
             ps.setInt(1,ordersAndBill.getOrderID());
             ps.setDate(2,ordersAndBill.getBillDate());
             ps.setInt(3,ordersAndBill.getAccountantID());
             ps.setFloat(4,ordersAndBill.getBillAmount());
-            int result = ps.executeUpdate();
+
+            psSelect = connection.prepareStatement(selectQuery);
+            psSelect.setInt(1, ordersAndBill.getOrderID());
+            ResultSet rs = psSelect.executeQuery();
+            if(rs.next()){
+                distributorID = rs.getInt(1);
+                System.out.println("ID = "+distributorID);
+            }else {
+                System.out.println("distributorID not found.");
+                return;
+            }
+
+            psUpdate = connection.prepareStatement(updateQuery);
+            psUpdate.setFloat(1,ordersAndBill.getBillAmount());
+            psUpdate.setInt(2, distributorID);
+            int result = psUpdate.executeUpdate();
+            if(result == 1) {
+                System.out.println("Balance Updated for Distributor.");
+            }else {
+                System.out.println("Balance can't be Updated for Distributor.");
+            }
+
+            result = ps.executeUpdate();
             if(result == 1)
                 System.out.println("Successfully inserted Bill Details.");
             else
@@ -328,7 +355,7 @@ public class DistributionService {
 
     private void placeOrder(Order order) {
         PreparedStatement ps;
-        String insertQuery = "INSERT INTO ORDERS VALUES OrderID = ?, OrderDate = ?, ExpectedDate = ?, ShippingCost = ?, IsPaid = ?, NumberCopies= ?, Price = ?, DistributorID = ?, PublicationID = ?";
+        String insertQuery = "INSERT INTO ORDERS (OrderID , OrderDate , ExpectedDate , ShippingCost , IsPaid , NumberCopies , Price , DistributorID , PublicationID) VALUES (?,?,?,?,?,?,?,?,?)";
         try{
             ps = connection.prepareStatement(insertQuery);
             ps.setInt(1, order.getOrderID());
@@ -418,7 +445,7 @@ public class DistributionService {
                 contactPerson = contactPersonBefore;
             }
             // Update the data as per user provided attribute values
-            String updateQuery = "UPDATE DISTRIBUTORS SET Name = ?, Address = ?,  Contact = ?, City = ?, ContactPerson = ?, DistributorType = ? WHERE DistributorID = ?";
+            String updateQuery = "UPDATE DISTRIBUTORS SET Name = ?, Address = ?,  Contact = ?, City = ?, ContactPerson = ?, DistributorType = ?, Balance = ? WHERE DistributorID = ?";
             ps = connection.prepareStatement(updateQuery);
             ps.setString(1, name);
             ps.setString(2, address);
@@ -426,7 +453,8 @@ public class DistributionService {
             ps.setString(4, city);
             ps.setString(5, contactPerson);
             ps.setString(6,distributorType);
-            ps.setInt(7, distributorID);
+            ps.setFloat(7, balance);
+            ps.setInt(8, distributorID);
             int result = ps.executeUpdate();
             if(result == 1)
                 System.out.println("Successfully updated distributor Details.");
@@ -438,34 +466,68 @@ public class DistributionService {
     }
 
     private void enterDistributorInfo(Distributor distributor, City cityObj) {
-        PreparedStatement ps;
-        int distributorID = distributor.getDistributorID();
-        String address = distributor.getAddress();
-        String name = distributor.getName();
-        String contact = distributor.getContact();
-        String city = distributor.getCity();
-        String contactPerson = distributor.getContactPerson();
-        String distributorType = distributor.getDistributorType();
-        float balance = distributor.getBalance();
+        PreparedStatement psInsert = null, psInsert2 = null;
         int location = cityObj.getLocation();
-        String insertQuery = "INSERT DISTRIBUTORS SET  distributorID = ?, Name = ?, Address = ?,  Contact = ?, City = ?, ContactPerson = ?, DistributorType = ?";
+        String insertQuery = "INSERT INTO CITIES SET City = ?, Location = ?";
+        String insertQuery2 = "INSERT INTO DISTRIBUTORS SET  distributorID = ?, Name = ?, Address = ?,  Contact = ?, City = ?, ContactPerson = ?, DistributorType = ?, Balance = ?";
         try{
-            // Update the data as per user provided attribute values
-            ps = connection.prepareStatement(insertQuery);
-            ps.setInt(1, distributorID);
-            ps.setString(2, name);
-            ps.setString(3, address);
-            ps.setString(4, contact);
-            ps.setString(5, city);
-            ps.setString(6, contactPerson);
-            ps.setString(7,distributorType);
-            int result = ps.executeUpdate();
+            connection.setAutoCommit(false);
+            // Check if the City is not available in CITIES table, create a entry for City in CITIES
+            if(!isCityAvailable(cityObj)){
+                psInsert = connection.prepareStatement(insertQuery);
+                psInsert.setString(1,cityObj.getCity());
+                psInsert.setInt(2,cityObj.getLocation());
+            }
+            // Insert the Distributor's Information in DISTRIBUTORS able.
+            psInsert2 = connection.prepareStatement(insertQuery2);
+            psInsert2.setInt(1, distributor.getDistributorID());
+            psInsert2.setString(2, distributor.getName());
+            psInsert2.setString(3, distributor.getAddress());
+            psInsert2.setString(4, distributor.getContact());
+            psInsert2.setString(5,  distributor.getCity());
+            psInsert2.setString(6, distributor.getContactPerson());
+            psInsert2.setString(7,distributor.getDistributorType());
+            psInsert2.setFloat(8, distributor.getBalance());
+            if(psInsert != null){
+                psInsert.executeUpdate();
+            }
+            int result = psInsert2.executeUpdate();
             if(result == 1)
                 System.out.println("Successfully inserted distributor Details.");
             else
                 System.out.println("Unsuccessful.");
+            connection.commit();
+        } catch (SQLException e) {
+            try {
+                connection.rollback();
+                System.out.println("Rolled back the transaction.");
+            } catch (SQLException ex) {
+                System.out.println("Rollback unsuccessful.");
+                ex.printStackTrace();
+            }
+            e.printStackTrace();
+        }
+        try {
+            // since this object is shared, set the autocommit to true again
+            connection.setAutoCommit(true);
         } catch (SQLException e) {
             e.printStackTrace();
         }
+    }
+    // Below function checks if a city is already available in CITIES Table
+    private boolean isCityAvailable(City cityObj){
+        PreparedStatement ps;
+        String selectQuery = "SELECT * FROM CITIES WHERE CITY = ?";
+        try{
+            ps = connection.prepareStatement(selectQuery);
+            ps.setString(1, cityObj.getCity());
+            ResultSet resultSet = ps.executeQuery();
+            if(resultSet.next())
+                return true;
+            return false;
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
     }
 }
